@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="dropdown">
+            <select>
+                <option value="all">All Projects</option>
+                <option value="active">Active Projects</option>
+                <option value="completed">Completed Projects</option>
+            </select>
+        </div>
+
+        <div class="search-bar">
+            <input type="text" placeholder="Search project name...">
+            <button><i class="fa fa-search"></i></button>
+        </div>
+
+        <div class="buttons">
+            <button class="button blue-button">New Project</button>
+            <!-- Generate Vendor button -->
+            <button id="generate-vendor" class="button green-button" disabled>Generate Vendor</button>
+        </div>
+    </div>
+    
+    <!-- Import Excel button -->
+    <button id="import-button" class="button green-button">Import Excel</button>
+
+    <form id="import-form" method="post" enctype="multipart/form-data" style="display: none;">
+        <input type="file" name="excel_file" accept=".xlsx, .xls,.csv" id="excel-file-input">
+        <button type="button" class="button green-button" id="upload-button" style="display: none;">Upload</button>
+    </form>
+
+    <div id="file-content"></div> <!-- Container to display the table -->
+    <div id="generated-content"></div> <!-- Container to display generated vendor data -->
+
+    <script>
+        let tableData = []; // To store the table data globally
+
+        // Toggle import form on button click
+        document.getElementById('import-button').addEventListener('click', function() {
+            var form = document.getElementById('import-form');
+            form.style.display = (form.style.display === 'block') ? 'none' : 'block';
+        });
+
+        // Show the upload button after selecting a file
+        document.getElementById('excel-file-input').addEventListener('change', function() {
+            document.getElementById('upload-button').style.display = 'block';
+        });
+
+        // Upload the file when the Upload button is clicked
+        document.getElementById('upload-button').addEventListener('click', function() {
+            var formData = new FormData();
+            var fileInput = document.getElementById('excel-file-input');
+            var file = fileInput.files[0];
+            
+            // Check if a file is selected
+            if (!file) {
+                alert('Please select a file to upload.');
+                console.error('No file selected');
+                return;
+            }
+
+            // Append the file to the form data
+            formData.append('excel_file', file);
+
+            // Make the request to upload the file
+            fetch('/upload_excel', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Data received:', data);
+
+                // Render the table if data is received
+                if (data.columns && data.data) {
+                    var columns = data.columns;
+                    var rows = data.data;
+                    
+                    var tableHtml = '<table id="rohitsirdata"><thead><tr>';
+                    columns.forEach(column => {
+                        tableHtml += `<th>${column}</th>`;
+                    });
+                    tableHtml += '</tr></thead><tbody>';
+
+                    rows.forEach(row => {
+                        tableHtml += '<tr>';
+                        columns.forEach(column => {
+                            tableHtml += `<td>${row[column] || ''}</td>`;
+                        });
+                        tableHtml += '</tr>';
+                    });
+
+                    tableHtml += '</tbody></table>';
+                    document.getElementById('file-content').innerHTML = tableHtml;
+
+                    // Enable the Generate Vendor button
+                    document.getElementById('generate-vendor').disabled = false;
+
+                    // Save the table data globally for later use
+                    tableData = rows;
+                } else {
+                    console.error('Error:', data.error);
+                    alert('Failed to process file content.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during file upload.');
+            });
+        });
+
+        // Generate vendor data when the Generate Vendor button is clicked
+        document.getElementById('generate-vendor').addEventListener('click', function() {
+            // Extract descriptions from the table
+            const descriptions = tableData.map(row => row['Descriptions']); // Adjust if necessary
+            
+            fetch('/generate_vendor', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: descriptions })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Generate Vendor response:', data);
+
+                if (Array.isArray(data)) {
+                    var tableHtml = '<table><thead><tr>';
+                    tableHtml += '<th>Vendor Name</th>'; // Adjust column headers if necessary
+                    tableHtml += '<th>Vendor Name Conf</th>'; // Adjust column headers if necessary
+                    tableHtml += '<th>Vendor Type</th>'; // Adjust column headers if necessary
+                    tableHtml += '<th>Vendor Type conf</th>'; // Adjust column headers if necessary
+                    tableHtml += '</tr></thead><tbody>';
+
+                    data.forEach(row => {
+                        tableHtml += '<tr>';
+                        tableHtml += `<td>${row['Generated Column 1'] || ''}</td>`; // Adjust column names if necessary
+                        tableHtml += `<td>${row['Generated Column 2'] || ''}</td>`; // Adjust column names if necessary
+                        tableHtml += `<td>${row['Generated Column 3'] || ''}</td>`; // Adjust column names if necessary
+                        tableHtml += `<td>${row['Generated Column 4'] || ''}</td>`; // Adjust column names if necessary
+                        tableHtml += '</tr>';
+                    });
+
+                    tableHtml += '</tbody></table>';
+                    document.getElementById('generated-content').innerHTML = tableHtml;
+                } else {
+                    console.error('Error:', data.error);
+                    alert('Failed to generate vendor data.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while generating vendor data.');
+            });
+        });
+    </script>
+</body>
+</html>
